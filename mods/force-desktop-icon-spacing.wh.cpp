@@ -2,9 +2,9 @@
 // @id              force-desktop-icon-spacing
 // @name            Force Desktop Icon Spacing
 // @name:zh-CN      强制桌面图标间距
-// @description     Set the desktop icon grid spacing (X/Y) and reserve a blank margin above the taskbar. Event-driven and DPI-aware; the original spacing and icon area height are restored when the mod is disabled.
-// @description:zh-CN  设置桌面图标的水平/垂直网格间距，并在任务栏上方预留底部空白边距。事件驱动、支持 DPI 缩放；停用模组后自动还原原始间距与图标区域高度。
-// @version         1.1.4
+// @description     Set the desktop icon grid spacing (X/Y) and reserve a blank margin above the taskbar. Event-driven and DPI-aware, except for a short one-time icon-count check for up to a minute after Explorer starts; the original spacing and icon area height are restored when the mod is disabled.
+// @description:zh-CN  设置桌面图标的水平/垂直网格间距，并在任务栏上方预留底部空白边距。事件驱动、支持 DPI 缩放（仅资源管理器启动后有一段最长一分钟的图标数量一次性检查）；停用模组后自动还原原始间距与图标区域高度。
+// @version         1.1.5
 // @author          Koewen
 // @github          https://github.com/Koewen
 // @include         explorer.exe
@@ -19,7 +19,7 @@ Precisely control the desktop icon spacing: set the horizontal/vertical icon gri
 
 ## How it works
 
-- The desktop list view (`SysListView32`) is subclassed (event-driven, no polling): every spacing request Explorer makes is transparently replaced with the configured values, and the icon area height is capped so it never enters the reserved bottom strip.
+- The desktop list view (`SysListView32`) is subclassed (event-driven; the only polling is a one-time boot check that polls the icon count once a second for up to a minute after Explorer starts): every spacing request Explorer makes is transparently replaced with the configured values, and the icon area height is capped so it never enters the reserved bottom strip.
 - Values are absolute and applied in one pass: the same settings always produce the same layout, never cumulative drift.
 - The vertical grid is anchored at the top: increasing the vertical spacing stretches the grid downward, so the extra space is absorbed by the bottom region. No blank strip is created at the top, and the icon area is never shifted as a whole.
 - The bottom margin caps the icon area height only (the top edge stays fixed), so icon columns wrap earlier and never enter the reserved bottom strip.
@@ -30,7 +30,7 @@ Precisely control the desktop icon spacing: set the horizontal/vertical icon gri
 - **Horizontal spacing (pixels)**: width of each icon grid cell, at 100% scaling. Larger = more horizontal gap between icons.
 - **Vertical spacing (pixels)**: height of each icon grid cell, at 100% scaling. Larger = taller rows; the grid grows downward and the extra space is absorbed by the bottom region.
 - **Bottom margin (pixels)**: blank strip reserved at the bottom of the icon area, above the taskbar, at 100% scaling. The icon grid never enters it. 0 = no reservation.
-- **Rearrange icons on startup**: arrange icons once when the mod loads (same as the desktop "Arrange icons" command) so the spacing/margin take effect immediately. Note this only applies when the mod is loaded into an already-running Explorer (enabling or updating the mod); when Explorer starts with the mod, Explorer places icons from its saved layout afterwards. Changes made in the settings always rearrange.
+- **Rearrange icons on startup**: arrange icons once when the mod loads and every time Explorer starts (sign-in, reboot, Explorer restart), so the spacing/margin take effect. Turn this off to keep icons where you place them by hand. Changes made in the settings always rearrange.
 
 ## Notes
 
@@ -45,7 +45,7 @@ Precisely control the desktop icon spacing: set the horizontal/vertical icon gri
 
 ### 工作原理
 
-- 通过子类化（事件驱动，无轮询）挂钩桌面列表视图（`SysListView32`）：资源管理器发出的每个间距设置请求都会被透明替换为配置值，图标区域高度被限制在预留边距之上。
+- 通过子类化（事件驱动；唯一的轮询是资源管理器启动后长达一分钟、每秒一次的图标数量一次性开机检查）挂钩桌面列表视图（`SysListView32`）：资源管理器发出的每个间距设置请求都会被透明替换为配置值，图标区域高度被限制在预留边距之上。
 - 所有数值均为绝对值、一次性应用——同一配置永远得到同一布局，不存在多次叠加漂移。
 - 垂直网格顶端锚定：调大垂直间距时行距拉大、网格向下延伸，多余空间挤占底部区域——顶部不会产生空白，图标区域也不会被整体移动。
 - 底部边距只限制图标区域高度（顶边固定），图标换列提前，永不进入底部预留区。
@@ -56,7 +56,7 @@ Precisely control the desktop icon spacing: set the horizontal/vertical icon gri
 - **水平间距（像素）**：图标网格单元宽度（100% 缩放下），数值越大图标水平间距越大。
 - **垂直间距（像素）**：图标网格单元高度（100% 缩放下），数值越大行距越大，网格向下延伸，多余空间挤占底部区域。
 - **底部边距（像素）**：图标区域底部（任务栏上方）预留的空白高度（100% 缩放下），图标网格不会进入该区域。0 = 不预留。
-- **启动时重排图标**：模组加载时执行一次"排列图标"，使间距/边距立即生效。注意：仅在模组加载到已运行的资源管理器时（启用/更新模组）起作用；资源管理器随模组启动时，系统会按保存的布局放置图标。在设置面板修改参数时始终会重排。
+- **启动时重排图标**：模组加载时以及资源管理器每次启动时（登录、重启、重启资源管理器）各执行一次"排列图标"，使间距/边距生效。若希望保留手动拖放的图标布局，可关闭此项。在设置面板修改参数时始终会重排。
 
 ### 注意
 
@@ -87,8 +87,8 @@ Precisely control the desktop icon spacing: set the horizontal/vertical icon gri
 - ArrangeOnStartup: true
   $name: Rearrange icons on startup
   $name:zh-CN: 启动时重排图标
-  $description: Arrange icons once when the mod loads so the spacing/margin take effect immediately. Only applies when the mod is loaded into an already-running Explorer (enable/update); when Explorer starts with the mod, Explorer places icons from its saved layout afterwards. Disable to keep hand-drawn icon layouts.
-  $description:zh-CN: 模组加载时执行一次"排列图标"，使间距/边距立即生效。仅在模组加载到已运行的资源管理器时（启用/更新模组）起作用；资源管理器随模组启动时，系统会按保存的布局放置图标。若希望保留手动拖放的图标布局，可关闭此项。
+  $description: Arrange icons once when the mod loads and every time Explorer starts (sign-in, reboot, Explorer restart), so the spacing/margin take effect. Turn this off to keep icons where you place them by hand.
+  $description:zh-CN: 模组加载时以及资源管理器每次启动时（登录、重启、重启资源管理器）各执行一次"排列图标"，使间距/边距生效。若希望保留手动拖放的图标布局，可关闭此项。
 */
 // ==/WindhawkModSettings==
 
@@ -119,6 +119,11 @@ static std::atomic<HWND> g_subclassedLV{nullptr};
 // across two consecutive ticks (insertion finished), then arranges once.
 static std::atomic<bool> g_pendingBootArrange{false};
 static const UINT_PTR kBootArrangeTimerId = 0x41475901;
+// Tick counters for the boot-arrange stability check. File-scope (not
+// function-local statics) so they can be reset whenever the timer is
+// (re)started - e.g. when the desktop list view is recreated mid-boot.
+static int g_bootArrangeTicks = 0;
+static int g_bootArrangeLastCount = -1;
 
 static int Clamp(int value, int minValue, int maxValue) {
     return value < minValue ? minValue : (value > maxValue ? maxValue : value);
@@ -251,6 +256,17 @@ static LRESULT CALLBACK DesktopListViewSubclassProc(HWND hWnd, UINT uMsg, WPARAM
             ApplySettings(hWnd, FALSE);
             break;
 
+        case LVM_INSERTITEM:
+            // Desktop enumeration can pause between inserts (network
+            // shortcuts, OneDrive placeholders, a slow disk). Restart the
+            // boot-arrange wait so it settles relative to the LAST
+            // insertion instead of guessing from the count alone.
+            if (g_pendingBootArrange.load(std::memory_order_relaxed)) {
+                g_bootArrangeTicks = 0;
+                SetTimer(hWnd, kBootArrangeTimerId, 1000, NULL);
+            }
+            break;
+
         case WM_TIMER: {
             if (wParam != kBootArrangeTimerId ||
                 !g_pendingBootArrange.load(std::memory_order_relaxed)) {
@@ -258,28 +274,25 @@ static LRESULT CALLBACK DesktopListViewSubclassProc(HWND hWnd, UINT uMsg, WPARAM
             }
 
             // Give up after 60 ticks (~1 minute) if the view never fills.
-            static int s_ticks = 0;
-            static int s_lastCount = -1;
-
             int count = (int)SendMessage(hWnd, LVM_GETITEMCOUNT, 0, 0);
-            if (count > 0 && count == s_lastCount) {
+            if (count > 0 && count == g_bootArrangeLastCount) {
                 // Item count stable across two ticks: insertion is done.
                 KillTimer(hWnd, kBootArrangeTimerId);
                 g_pendingBootArrange = false;
-                s_ticks = 0;
-                s_lastCount = -1;
+                g_bootArrangeTicks = 0;
+                g_bootArrangeLastCount = -1;
                 Wh_Log(L"Boot arrange: %d icons settled, arranging", count);
                 ApplySettings(hWnd, TRUE);
-            } else if (++s_ticks > 60) {
+            } else if (++g_bootArrangeTicks > 60) {
                 KillTimer(hWnd, kBootArrangeTimerId);
                 g_pendingBootArrange = false;
-                s_ticks = 0;
-                s_lastCount = -1;
+                g_bootArrangeTicks = 0;
+                g_bootArrangeLastCount = -1;
                 Wh_Log(L"Boot arrange: giving up after 60 ticks");
             } else {
-                s_lastCount = count;
+                g_bootArrangeLastCount = count;
             }
-            break;
+            return 0;  // our timer only; don't forward a foreign timer ID
         }
 
         case WM_NCDESTROY: {
@@ -323,6 +336,8 @@ static void SubclassDesktopListView(HWND hWnd) {
     // deferred boot arrange: wait until the item count settles, then arrange.
     if (g_arrangeOnStartup && (int)SendMessage(hWnd, LVM_GETITEMCOUNT, 0, 0) == 0) {
         g_pendingBootArrange = true;
+        g_bootArrangeTicks = 0;
+        g_bootArrangeLastCount = -1;
         SetTimer(hWnd, kBootArrangeTimerId, 1000, NULL);
         Wh_Log(L"View empty at install; boot arrange deferred");
     }
