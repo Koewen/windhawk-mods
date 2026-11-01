@@ -4,7 +4,7 @@
 // @name:zh-CN      强制桌面图标间距
 // @description     Set the desktop icon grid spacing (X/Y) and reserve a blank margin above the taskbar. Event-driven and DPI-aware; the original spacing and icon area height are restored when the mod is disabled.
 // @description:zh-CN  设置桌面图标的水平/垂直网格间距，并在任务栏上方预留底部空白边距。事件驱动、支持 DPI 缩放；停用模组后自动还原原始间距与图标区域高度。
-// @version         1.1.3
+// @version         1.1.4
 // @author          Koewen
 // @github          https://github.com/Koewen
 // @include         explorer.exe
@@ -109,6 +109,16 @@ static std::atomic<LONG> g_originalSpacing{0};
 
 // The currently subclassed desktop list view.
 static std::atomic<HWND> g_subclassedLV{nullptr};
+
+// Boot-time deferred arrange. At Explorer start the subclass is installed
+// right after the list view is created - before a single icon is inserted -
+// so an immediate LVM_ARRANGE is a no-op and Explorer then restores icons at
+// their saved (old-grid) positions, which looks like "settings lost after
+// reboot". When ArrangeOnStartup is on and the view is empty at install
+// time, a 1-second timer waits until the item count is non-zero AND stable
+// across two consecutive ticks (insertion finished), then arranges once.
+static std::atomic<bool> g_pendingBootArrange{false};
+static const UINT_PTR kBootArrangeTimerId = 0x41475901;
 
 static int Clamp(int value, int minValue, int maxValue) {
     return value < minValue ? minValue : (value > maxValue ? maxValue : value);
@@ -241,7 +251,40 @@ static LRESULT CALLBACK DesktopListViewSubclassProc(HWND hWnd, UINT uMsg, WPARAM
             ApplySettings(hWnd, FALSE);
             break;
 
+        case WM_TIMER: {
+            if (wParam != kBootArrangeTimerId ||
+                !g_pendingBootArrange.load(std::memory_order_relaxed)) {
+                break;  // not our timer - let DefSubclassProc handle it
+            }
+
+            // Give up after 60 ticks (~1 minute) if the view never fills.
+            static int s_ticks = 0;
+            static int s_lastCount = -1;
+
+            int count = (int)SendMessage(hWnd, LVM_GETITEMCOUNT, 0, 0);
+            if (count > 0 && count == s_lastCount) {
+                // Item count stable across two ticks: insertion is done.
+                KillTimer(hWnd, kBootArrangeTimerId);
+                g_pendingBootArrange = false;
+                s_ticks = 0;
+                s_lastCount = -1;
+                Wh_Log(L"Boot arrange: %d icons settled, arranging", count);
+                ApplySettings(hWnd, TRUE);
+            } else if (++s_ticks > 60) {
+                KillTimer(hWnd, kBootArrangeTimerId);
+                g_pendingBootArrange = false;
+                s_ticks = 0;
+                s_lastCount = -1;
+                Wh_Log(L"Boot arrange: giving up after 60 ticks");
+            } else {
+                s_lastCount = count;
+            }
+            break;
+        }
+
         case WM_NCDESTROY: {
+            KillTimer(hWnd, kBootArrangeTimerId);
+            g_pendingBootArrange = false;
             // Use a local copy: when the comparison fails,
             // compare_exchange_strong writes the current value into the
             // expected argument, which must not be the hWnd we still need
@@ -274,9 +317,20 @@ static void SubclassDesktopListView(HWND hWnd) {
     Wh_Log(L"Desktop list view subclassed: %08X", (DWORD)(ULONG_PTR)hWnd);
 
     ApplySettings(hWnd, g_arrangeOnStartup ? TRUE : FALSE);
+
+    // If the view is still empty (mod loaded at Explorer start, before the
+    // icons are inserted), the arrange above was a no-op. Schedule the
+    // deferred boot arrange: wait until the item count settles, then arrange.
+    if (g_arrangeOnStartup && (int)SendMessage(hWnd, LVM_GETITEMCOUNT, 0, 0) == 0) {
+        g_pendingBootArrange = true;
+        SetTimer(hWnd, kBootArrangeTimerId, 1000, NULL);
+        Wh_Log(L"View empty at install; boot arrange deferred");
+    }
 }
 
 static void UnsubclassDesktopListView(HWND hWnd) {
+    KillTimer(hWnd, kBootArrangeTimerId);
+    g_pendingBootArrange = false;
     WindhawkUtils::RemoveWindowSubclassFromAnyThread(hWnd, DesktopListViewSubclassProc);
 
     // Restore the spacing Explorer last sent (including -1 = "reset to
