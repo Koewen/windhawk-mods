@@ -2,9 +2,9 @@
 // @id              force-desktop-icon-spacing
 // @name            Force Desktop Icon Spacing
 // @name:zh-CN      强制桌面图标间距
-// @description     Set the desktop icon grid spacing (X/Y) and reserve a blank margin above the taskbar. Event-driven and DPI-aware, except for a short one-time icon-count check for up to a minute after Explorer starts; the original spacing and icon area height are restored when the mod is disabled.
-// @description:zh-CN  设置桌面图标的水平/垂直网格间距，并在任务栏上方预留底部空白边距。事件驱动、支持 DPI 缩放（仅资源管理器启动后有一段最长一分钟的图标数量一次性检查）；停用模组后自动还原原始间距与图标区域高度。
-// @version         1.1.5
+// @description     Set the desktop icon grid spacing (X/Y) and reserve a blank margin above the taskbar. Event-driven and DPI-aware, with a short startup icon-count check; the original spacing and height are restored on unload.
+// @description:zh-CN  设置桌面图标的水平/垂直网格间距，并在任务栏上方预留底部空白边距。事件驱动、支持 DPI 缩放，含启动阶段短暂的图标数量检查；停用模组后自动还原间距与高度。
+// @version         1.1.6
 // @author          Koewen
 // @github          https://github.com/Koewen
 // @include         explorer.exe
